@@ -1,0 +1,5 @@
+docs/
+scripts/
+icon.ico
+data/*
+!data/shrines.js

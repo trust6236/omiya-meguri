@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>金沢 お宮さんめぐり</title>
+<meta name="theme-color" content="#b8371f">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700&family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#faf5ec;
+  --card:#ffffff;
+  --ink:#2a241d;
+  --muted:#8d8377;
+  --line:#e9dfd0;
+  --shu:#b8371f;          /* 台紙の朱色 */
+  --shu-deep:#9c2c18;
+  --shu-soft:#fdeee9;
+  --stamp:#c23a24;
+  --ok:#3a7d44;
+  --shadow:0 10px 30px rgba(60,40,20,.08);
+  --serif:"Fraunces","游明朝","Yu Mincho","Hiragino Mincho ProN",serif;
+  --sans:"Manrope","Hiragino Kaku Gothic ProN","Yu Gothic UI",system-ui,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#171310;
+    --card:#221d18;
+    --ink:#efe7db;
+    --muted:#9b9083;
+    --line:#3b332a;
+    --shu:#c74c31;
+    --shu-deep:#8f2a16;
+    --shu-soft:#33201b;
+    --stamp:#e05a3e;
+    --ok:#6fbf7a;
+    --shadow:0 10px 30px rgba(0,0,0,.35);
+  }
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.6}
+button{font-family:inherit;color:inherit;background:none;border:none;cursor:pointer}
+a{color:inherit}
+
+/* ---------- ヘッダー（カラーブロック） ---------- */
+.hero{background:linear-gradient(160deg,var(--shu) 0%,var(--shu-deep) 100%);color:#fff;
+  padding:26px 20px 64px;position:relative;overflow:hidden}
+.hero::after{content:"";position:absolute;right:-70px;top:-70px;width:230px;height:230px;
+  border-radius:50%;background:rgba(255,255,255,.08)}
+.hero-in{max-width:760px;margin:0 auto;position:relative;z-index:1}
+.hero .kicker{font-size:.72rem;letter-spacing:.14em;opacity:.85}
+.hero h1{font-family:var(--serif);font-weight:700;font-size:1.8rem;letter-spacing:.06em;margin-top:2px}
+.hero .sub{font-size:.8rem;opacity:.9;margin-top:2px}
+.hero .torii{position:absolute;right:6px;bottom:-6px;font-size:3.2rem;opacity:.25}
+
+.wrap{max-width:760px;margin:0 auto;padding:0 14px 90px}
+
+/* ---------- 進捗カード（ヘッダーに重ねる） ---------- */
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow)}
+.progress-card{margin-top:-34px;padding:16px 18px;position:relative;z-index:2}
+.progress-top{display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.progress-num{font-family:var(--serif);font-size:1.7rem;font-variant-numeric:tabular-nums}
+.progress-num small{font-size:.85rem;color:var(--muted);font-family:var(--sans)}
+.badge{font-size:.72rem;padding:3px 10px;border-radius:999px;background:var(--shu-soft);color:var(--shu);font-weight:700}
+.badge.done{background:var(--shu);color:#fff}
+.bar{height:8px;border-radius:999px;background:var(--line);margin-top:10px;overflow:hidden}
+.bar>i{display:block;height:100%;border-radius:999px;background:var(--shu);transition:width .4s ease}
+.goal-note{margin-top:10px;font-size:.78rem;color:var(--muted)}
+.goal-note.celebrate{color:var(--shu);font-weight:700;font-size:.86rem}
+
+/* ---------- タブ ---------- */
+.tabs{display:flex;gap:6px;margin:14px 0 12px;background:var(--card);border:1px solid var(--line);
+  border-radius:14px;padding:5px;position:sticky;top:8px;z-index:20;box-shadow:var(--shadow)}
+.tabs button{flex:1;padding:9px 0;border-radius:10px;font-weight:700;font-size:.88rem;color:var(--muted);transition:background .15s,color .15s}
+.tabs button.on{background:var(--shu);color:#fff}
+
+.view{display:none}
+.view.on{display:block}
+
+/* ---------- 地図 ---------- */
+#gmap{width:100%;height:62vh;min-height:340px;border-radius:18px 18px 0 0}
+.map-card{overflow:hidden}
+.map-foot{padding:10px 14px;display:flex;gap:8px;align-items:center;border-top:1px solid var(--line);flex-wrap:wrap}
+.chip-btn{padding:8px 14px;border-radius:999px;border:1px solid var(--line);font-size:.82rem;font-weight:700;
+  background:var(--bg);transition:background .15s}
+.chip-btn:hover{background:var(--shu-soft)}
+.legend{font-size:.75rem;color:var(--muted);margin-left:auto}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin:0 3px 0 8px;vertical-align:-1px}
+.map-empty{padding:34px 22px;text-align:center}
+.map-empty h3{font-family:var(--serif);margin-bottom:8px}
+.map-empty p{font-size:.85rem;color:var(--muted)}
+.near-list{margin-top:12px;padding:6px 0}
+.near-list h3{font-size:.8rem;color:var(--muted);padding:8px 16px 2px;font-weight:700}
+
+/* ---------- 押印帳 ---------- */
+.book-card{padding:14px}
+.book-note{font-size:.76rem;color:var(--muted);margin:2px 4px 12px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(102px,1fr));gap:8px}
+.cell{border:1px solid var(--line);border-radius:12px;padding:8px 6px 10px;text-align:center;
+  background:var(--bg);transition:transform .15s,box-shadow .15s;position:relative}
+.cell:hover{transform:translateY(-2px);box-shadow:var(--shadow)}
+.cell .no{font-size:.62rem;color:#fff;background:var(--shu);border-radius:6px;padding:1px 6px;
+  position:absolute;top:6px;left:6px;font-variant-numeric:tabular-nums}
+.cell .gosha-mark{position:absolute;top:6px;right:6px;font-size:.58rem;color:var(--shu);font-weight:800}
+.cell .ring{width:64px;height:64px;margin:16px auto 6px;border:2px dashed var(--line);border-radius:50%;
+  display:flex;align-items:center;justify-content:center;position:relative}
+.cell.stamped .ring{border:none}
+.stamp{width:64px;height:64px;border-radius:50%;border:3px solid var(--stamp);color:var(--stamp);
+  display:flex;align-items:center;justify-content:center;transform:rotate(-6deg);
+  font-family:var(--serif);font-weight:700;box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--stamp) 45%,transparent)}
+.stamp span{writing-mode:vertical-rl;font-size:.72rem;letter-spacing:.06em;line-height:1.05;max-height:52px;overflow:hidden}
+.cell .nm{font-size:.72rem;font-weight:700;line-height:1.25}
+.cell .dt{font-size:.64rem;color:var(--muted);font-variant-numeric:tabular-nums;min-height:1em}
+@keyframes stampIn{0%{transform:rotate(-6deg) scale(2.1);opacity:0}60%{transform:rotate(-6deg) scale(.92);opacity:1}100%{transform:rotate(-6deg) scale(1)}}
+.stamp.new{animation:stampIn .45s cubic-bezier(.2,.8,.3,1.2)}
+
+/* ---------- 一覧 ---------- */
+.list-card{overflow:hidden}
+.row{display:flex;gap:10px;align-items:center;padding:11px 14px;border-bottom:1px solid var(--line);
+  width:100%;text-align:left;transition:background .15s}
+.row:last-child{border-bottom:none}
+.row:hover{background:var(--shu-soft)}
+.row .rno{font-family:var(--serif);font-variant-numeric:tabular-nums;color:var(--muted);width:26px;text-align:right;flex:none}
+.row .rmain{flex:1;min-width:0}
+.row .rname{font-weight:700;font-size:.92rem}
+.row .rtag{font-size:.72rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .rdist{font-size:.72rem;color:var(--muted);font-variant-numeric:tabular-nums;flex:none}
+.row .rmark{flex:none;font-size:1.05rem;width:1.4em;text-align:center}
+.row .rmark.s{color:var(--stamp)}
+.row .rmark.g{color:var(--ok)}
+
+/* ---------- 神社シート（モーダル） ---------- */
+.backdrop{position:fixed;inset:0;background:rgba(20,10,5,.45);opacity:0;pointer-events:none;transition:opacity .2s;z-index:40}
+.backdrop.on{opacity:1;pointer-events:auto}
+.sheet{position:fixed;left:0;right:0;bottom:0;z-index:50;background:var(--card);
+  border-radius:22px 22px 0 0;max-height:88vh;overflow-y:auto;transform:translateY(105%);
+  transition:transform .28s cubic-bezier(.2,.8,.2,1);box-shadow:0 -12px 40px rgba(0,0,0,.25);
+  overscroll-behavior:contain}
+body.sheet-open{overflow:hidden}
+.sheet.on{transform:translateY(0)}
+.sheet-in{max-width:760px;margin:0 auto;padding:10px 18px 26px}
+.grab{width:44px;height:5px;border-radius:99px;background:var(--line);margin:6px auto 12px}
+.sh-head{display:flex;gap:12px;align-items:center}
+.sh-no{font-family:var(--serif);color:var(--shu);font-size:.9rem;flex:none}
+.sh-name{font-family:var(--serif);font-size:1.35rem;font-weight:700;line-height:1.3}
+.sh-kana{font-size:.72rem;color:var(--muted)}
+.sh-tag{margin-top:8px;display:flex;gap:6px;flex-wrap:wrap}
+.tagchip{font-size:.72rem;background:var(--shu-soft);color:var(--shu);border-radius:999px;padding:3px 10px;font-weight:700}
+.sh-sec{margin-top:14px;font-size:.86rem}
+.sh-sec b{display:block;font-size:.72rem;color:var(--muted);margin-bottom:2px;font-weight:700}
+.sh-links{margin-top:14px;display:flex;gap:8px;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:11px 16px;border-radius:12px;font-weight:700;
+  font-size:.88rem;border:1px solid var(--line);background:var(--bg);transition:transform .15s,background .15s;text-decoration:none}
+.btn:hover{transform:translateY(-1px)}
+.btn.primary{background:var(--shu);border-color:var(--shu);color:#fff}
+.btn.primary:hover{background:var(--shu-deep)}
+.btn:disabled{opacity:.55;cursor:default;transform:none}
+.sh-status{margin-top:14px;padding:12px 14px;border-radius:12px;background:var(--bg);border:1px solid var(--line);font-size:.85rem}
+.sh-status .big{font-family:var(--serif);color:var(--stamp);font-size:1.05rem}
+.sh-actions{margin-top:12px;display:flex;gap:8px;flex-wrap:wrap}
+.memo{margin-top:12px;width:100%;border:1px solid var(--line);border-radius:12px;background:var(--bg);
+  color:var(--ink);padding:10px 12px;font-family:inherit;font-size:.86rem;min-height:64px;resize:vertical}
+.goshuin-line{margin-top:10px;display:flex;align-items:center;gap:10px;font-size:.86rem}
+.hint{font-size:.75rem;color:var(--muted);margin-top:8px}
+
+/* ---------- 道具（書き出しなど） ---------- */
+.tools{margin:18px 0 0}
+.tools summary{font-size:.78rem;color:var(--muted);cursor:pointer;padding:6px}
+.tools-in{padding:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.tools textarea{width:100%;min-height:70px;font-size:.72rem;border:1px solid var(--line);border-radius:10px;
+  background:var(--bg);color:var(--ink);padding:8px;font-family:monospace}
+.foot{margin-top:26px;text-align:center;font-size:.7rem;color:var(--muted)}
+
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(80px);z-index:70;
+  background:var(--ink);color:var(--bg);padding:10px 18px;border-radius:999px;font-size:.84rem;font-weight:700;
+  transition:transform .25s;max-width:90vw;text-align:center}
+.toast.on{transform:translateX(-50%) translateY(0)}
+
+@media (prefers-reduced-motion: reduce){
+  *{animation:none!important;transition:none!important}
+}
+@media (max-width:420px){
+  .grid{grid-template-columns:repeat(3,1fr)}
+  .hero h1{font-size:1.55rem}
+}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="hero-in">
+    <div class="kicker">金沢・石川県神社庁 金沢市支部の台紙より</div>
+    <h1>お宮さんめぐり</h1>
+    <div class="sub">デジタル押印帳 — 31社スタンプラリーの相棒</div>
+    <div class="torii">⛩</div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <section class="card progress-card">
+    <div class="progress-top">
+      <div class="progress-num"><span id="cnt">0</span><small> / 31社</small></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <span class="badge" id="goshaBadge">金澤五社 0/5</span>
+        <span class="badge" id="goshuinBadge">御朱印 0</span>
+      </div>
+    </div>
+    <div class="bar"><i id="barFill" style="width:0%"></i></div>
+    <div class="goal-note" id="goalNote"></div>
+  </section>
+
+  <nav class="tabs" id="tabs">
+    <button data-v="map" class="on">地図</button>
+    <button data-v="book">押印帳</button>
+    <button data-v="list">一覧</button>
+  </nav>
+
+  <!-- 地図 -->
+  <section class="view on" id="view-map">
+    <div class="card map-card">
+      <div id="gmap">
+        <div class="map-empty" id="mapEmpty">
+          <h3>地図の準備中です</h3>
+          <p>Googleマップの鍵（APIキー）を設定すると、ここに31社の地図が表示されます。<br>
+          鍵ができるまでは「一覧」タブの各神社から地図アプリを開けます。</p>
+        </div>
+      </div>
+      <div class="map-foot">
+        <button class="chip-btn" id="btnLocate">📍 現在地</button>
+        <button class="chip-btn" id="btnFit">全体を見る</button>
+        <span class="legend">未参拝<i style="background:#9b9083"></i>参拝済<i style="background:var(--shu)"></i></span>
+      </div>
+    </div>
+    <div class="card near-list" id="nearCard" style="display:none">
+      <h3>ここから近い未参拝の神社</h3>
+      <div id="nearRows"></div>
+    </div>
+  </section>
+
+  <!-- 押印帳 -->
+  <section class="view" id="view-book">
+    <div class="card book-card">
+      <div class="book-note">マスを押すと神社の詳細と押印ができます。紙の台紙への押印もお忘れなく（記念品は紙の台紙が必要です）。</div>
+      <div class="grid" id="bookGrid"></div>
+    </div>
+  </section>
+
+  <!-- 一覧 -->
+  <section class="view" id="view-list">
+    <div class="card list-card" id="listCard"></div>
+  </section>
+
+  <details class="tools card">
+    <summary>記録のバックアップ（書き出し・読み込み）</summary>
+    <div class="tools-in">
+      <button class="chip-btn" id="btnExport">記録を書き出す</button>
+      <button class="chip-btn" id="btnImport">貼り付けた記録を読み込む</button>
+      <textarea id="ioArea" placeholder="書き出すとここにJSONが出ます。別の端末ではここに貼り付けて「読み込む」。"></textarea>
+    </div>
+  </details>
+
+  <div class="foot">金沢お宮さんめぐり デジタル押印帳（自分用）<br>神社の情報は石川県神社庁の公開ページに基づきます</div>
+</div>
+
+<!-- 神社シート -->
+<div class="backdrop" id="backdrop"></div>
+<div class="sheet" id="sheet">
+  <div class="sheet-in" id="sheetIn"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="data/shrines.js"></script>
+<script>
+/* ================= 設定 ================= */
+const GMAPS_API_KEY = "";          // Googleマップの鍵。docs/GoogleMaps鍵の取得手順.md 参照
+const CHECKIN_RADIUS_M = 300;      // この距離以内なら「現地で押印」できる
+const STORE_KEY = "omiya_records_v1";
+
+/* ================= 記録の保存 ================= */
+function loadStore(){
+  let s = null;
+  try{ s = JSON.parse(localStorage.getItem(STORE_KEY) || "null"); }catch(e){}
+  if(!s || !s.byNo){
+    s = {v:1, byNo:{}};
+    (typeof INITIAL_RECORDS !== "undefined" ? INITIAL_RECORDS : []).forEach(r=>{
+      s.byNo[r.no] = {stamp:r.stamp_date, goshuin:null, memo:r.memo || ""};
+    });
+    saveStore(s);
+  }
+  return s;
+}
+function saveStore(s){ try{ localStorage.setItem(STORE_KEY, JSON.stringify(s)); }catch(e){} }
+let store = loadStore();
+const rec = no => store.byNo[no] || null;
+
+/* ================= 共通 ================= */
+const $ = sel => document.querySelector(sel);
+const kanjiNo = n => "一二三四五六七八九十"[n-1] || String(n);
+function fmtDate(iso){
+  if(!iso) return "";
+  const [y,m,d] = iso.split("-").map(Number);
+  return `${y}/${m}/${d}`;
+}
+function todayISO(){
+  const t = new Date();
+  return `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,"0")}-${String(t.getDate()).padStart(2,"0")}`;
+}
+function distM(a, b){
+  const R=6371000, rad=x=>x*Math.PI/180;
+  const dp=rad(b.lat-a.lat), dl=rad(b.lng-a.lng);
+  const x=Math.sin(dp/2)**2 + Math.cos(rad(a.lat))*Math.cos(rad(b.lat))*Math.sin(dl/2)**2;
+  return 2*R*Math.asin(Math.sqrt(x));
+}
+function fmtDist(m){ return m<950 ? `${Math.round(m/10)*10}m` : `${(m/1000).toFixed(1)}km`; }
+let toastTimer=null;
+function toast(msg){
+  const t=$("#toast"); t.textContent=msg; t.classList.add("on");
+  clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove("on"), 2600);
+}
+function shortName(name){ return name.replace(/神社$/,"").replace(/^久保市乙剣宮$/,"乙剣宮"); }
+
+/* ================= 進捗 ================= */
+function stampedCount(){ return SHRINES.filter(s=>rec(s.no)?.stamp).length; }
+function refreshProgress(){
+  const c = stampedCount();
+  $("#cnt").textContent = c;
+  $("#barFill").style.width = (c/31*100)+"%";
+  const gm = RALLY.series.gosha.members;
+  const gc = gm.filter(no=>rec(no)?.stamp).length;
+  const gb = $("#goshaBadge");
+  gb.textContent = gc===gm.length ? "金澤五社 そろい踏み！" : `金澤五社 ${gc}/5`;
+  gb.classList.toggle("done", gc===gm.length);
+  const shuin = SHRINES.filter(s=>rec(s.no)?.goshuin).length;
+  $("#goshuinBadge").textContent = `御朱印 ${shuin}`;
+  const note = $("#goalNote");
+  if(c>=31){
+    note.className = "goal-note celebrate";
+    note.textContent = "🎉 満願成就！ " + RALLY.goal_note;
+  }else{
+    note.className = "goal-note";
+    note.textContent = `あと${31-c}社。` + (c>0 ? "よいお参りを。" : "さあ、めぐり始めましょう。");
+  }
+}
+
+/* ================= タブ ================= */
+$("#tabs").addEventListener("click", e=>{
+  const b = e.target.closest("button"); if(!b) return;
+  document.querySelectorAll("#tabs button").forEach(x=>x.classList.toggle("on", x===b));
+  document.querySelectorAll(".view").forEach(v=>v.classList.remove("on"));
+  $("#view-"+b.dataset.v).classList.add("on");
+});
+
+/* ================= 押印帳 ================= */
+function renderBook(){
+  const g = $("#bookGrid");
+  g.innerHTML = "";
+  SHRINES.forEach(s=>{
+    const r = rec(s.no);
+    const cell = document.createElement("button");
+    cell.className = "cell" + (r?.stamp ? " stamped" : "");
+    cell.innerHTML = `
+      <span class="no">${s.no}</span>
+      ${s.gosha ? '<span class="gosha-mark">五社</span>' : ''}
+      <div class="ring">${r?.stamp ? `<div class="stamp" data-no="${s.no}"><span>${shortName(s.name)}</span></div>` : ""}</div>
+      <div class="nm">${s.name}</div>
+      <div class="dt">${r?.stamp ? fmtDate(r.stamp) : ""}</div>`;
+    cell.addEventListener("click", ()=>openSheet(s.no));
+    g.appendChild(cell);
+  });
+}
+
+/* ================= 一覧 ================= */
+let lastPos = null;
+function renderList(){
+  const c = $("#listCard");
+  c.innerHTML = "";
+  let arr = [...SHRINES];
+  if(lastPos){
+    arr.forEach(s=>s._d = distM(lastPos, s));
+    arr.sort((a,b)=>a._d-b._d);
+  }
+  arr.forEach(s=>{
+    const r = rec(s.no);
+    const row = document.createElement("button");
+    row.className = "row";
+    row.innerHTML = `
+      <span class="rno">${s.no}</span>
+      <span class="rmain">
+        <div class="rname">${s.name}${s.gosha ? ' <span style="color:var(--shu);font-size:.7rem">［五社］</span>' : ''}</div>
+        <div class="rtag">${s.tagline || s.address.replace("金沢市","")}</div>
+      </span>
+      ${s._d!=null ? `<span class="rdist">${fmtDist(s._d)}</span>` : ""}
+      <span class="rmark s">${r?.stamp ? "㊞" : ""}</span>
+      <span class="rmark g">${r?.goshuin ? "御" : ""}</span>`;
+    row.addEventListener("click", ()=>openSheet(s.no));
+    c.appendChild(row);
+  });
+}
+
+/* ================= 神社シート ================= */
+let sheetNo = null;
+function openSheet(no){
+  sheetNo = no;
+  const s = SHRINES.find(x=>x.no===no);
+  const r = rec(no);
+  const nav = `https://www.google.com/maps/dir/?api=1&destination=${s.lat},${s.lng}`;
+  const statusHTML = r?.stamp
+    ? `<div class="sh-status">この神社は <span class="big">押印済み（${fmtDate(r.stamp)}）</span> です。
+       <div class="sh-actions"><button class="btn" id="btnUnstamp">押印を取り消す</button></div></div>`
+    : `<div class="sh-status">まだ押印していません。境内の近く（${CHECKIN_RADIUS_M}m以内）で「現地で押印」を押すと、日付入りでスタンプが押せます。
+       <div class="sh-actions">
+         <button class="btn primary" id="btnCheckin">📍 現地で押印</button>
+         <button class="btn" id="btnManual">日付を選んで押す</button>
+       </div>
+       <div class="sh-actions" id="manualRow" style="display:none">
+         <input type="date" id="manualDate" class="btn" value="${todayISO()}" max="${todayISO()}">
+         <button class="btn primary" id="btnManualGo">この日付で押す</button>
+       </div>
+       <div class="hint" id="checkinHint"></div></div>`;
+  $("#sheetIn").innerHTML = `
+    <div class="grab"></div>
+    <div class="sh-head">
+      <div class="sh-no">${kanjiNo(no)}番</div>
+      <div>
+        <div class="sh-name">${s.name}</div>
+        <div class="sh-kana">${s.kana || ""}</div>
+      </div>
+    </div>
+    <div class="sh-tag">
+      ${s.tagline ? `<span class="tagchip">${s.tagline}</span>` : ""}
+      ${s.gosha ? '<span class="tagchip">金澤五社</span>' : ""}
+    </div>
+    ${statusHTML}
+    <div class="goshuin-line">
+      <label><input type="checkbox" id="ckGoshuin" ${r?.goshuin ? "checked" : ""}> 御朱印をいただいた</label>
+      <span style="color:var(--muted);font-size:.78rem" id="goshuinDate">${r?.goshuin ? fmtDate(r.goshuin) : ""}</span>
+    </div>
+    <textarea class="memo" id="memoBox" placeholder="メモ（お参りの思い出、御朱印の受付時間など）">${r?.memo || ""}</textarea>
+    <div class="sh-sec"><b>ご由緒</b>${s.yuisho || "—"}</div>
+    <div class="sh-sec"><b>御祭神</b>${s.saijin || "—"}</div>
+    <div class="sh-sec"><b>鎮座地</b>${s.address}${s.tel ? `　☎ ${s.tel}` : ""}</div>
+    <div class="sh-links">
+      <a class="btn primary" href="${nav}" target="_blank" rel="noopener">🧭 Googleマップでナビ</a>
+      <a class="btn" href="${s.jinjacho_url}" target="_blank" rel="noopener">神社庁の紹介ページ</a>
+      ${s.official_site ? `<a class="btn" href="${s.official_site}" target="_blank" rel="noopener">公式サイト</a>` : ""}
+    </div>`;
+  $("#backdrop").classList.add("on");
+  $("#sheet").classList.add("on");
+  $("#sheet").scrollTop = 0;
+  document.body.classList.add("sheet-open");
+
+  $("#ckGoshuin").addEventListener("change", e=>{
+    ensureRec(no).goshuin = e.target.checked ? todayISO() : null;
+    saveStore(store);
+    $("#goshuinDate").textContent = e.target.checked ? fmtDate(todayISO()) : "";
+    refreshAll(false);
+  });
+  let memoTimer=null;
+  $("#memoBox").addEventListener("input", e=>{
+    clearTimeout(memoTimer);
+    memoTimer = setTimeout(()=>{ ensureRec(no).memo = e.target.value; saveStore(store); }, 400);
+  });
+  $("#btnCheckin")?.addEventListener("click", ()=>checkin(no));
+  $("#btnManual")?.addEventListener("click", ()=>{
+    const row = $("#manualRow");
+    row.style.display = row.style.display==="none" ? "flex" : "none";
+  });
+  $("#btnManualGo")?.addEventListener("click", ()=>{
+    const d = $("#manualDate").value;
+    if(!d){ toast("日付を選んでください"); return; }
+    doStamp(no, d);
+  });
+  $("#btnUnstamp")?.addEventListener("click", ()=>{
+    if(confirm(`${s.name}の押印（${fmtDate(r.stamp)}）を取り消しますか？`)){
+      ensureRec(no).stamp = null; saveStore(store); refreshAll(); openSheet(no);
+    }
+  });
+}
+function ensureRec(no){
+  if(!store.byNo[no]) store.byNo[no] = {stamp:null, goshuin:null, memo:""};
+  return store.byNo[no];
+}
+function closeSheet(){
+  $("#backdrop").classList.remove("on");
+  $("#sheet").classList.remove("on");
+  document.body.classList.remove("sheet-open");
+  sheetNo = null;
+}
+$("#backdrop").addEventListener("click", closeSheet);
+
+/* ================= 押印 ================= */
+function doStamp(no, dateISO){
+  ensureRec(no).stamp = dateISO;
+  saveStore(store);
+  refreshAll();
+  const s = SHRINES.find(x=>x.no===no);
+  closeSheet();
+  document.querySelector('#tabs button[data-v="book"]').click();
+  setTimeout(()=>{
+    const el = document.querySelector(`.stamp[data-no="${no}"]`);
+    if(el){ el.classList.add("new"); el.scrollIntoView({block:"center", behavior:"smooth"}); }
+    toast(`${s.name} に押印しました ㊞`);
+  }, 60);
+}
+function checkin(no){
+  const s = SHRINES.find(x=>x.no===no);
+  const hint = $("#checkinHint");
+  if(!navigator.geolocation){ hint.textContent = "この環境では位置情報が使えません。「日付を選んで押す」をどうぞ。"; return; }
+  hint.textContent = "現在地を確認しています…";
+  navigator.geolocation.getCurrentPosition(pos=>{
+    lastPos = {lat:pos.coords.latitude, lng:pos.coords.longitude};
+    const d = distM(lastPos, s);
+    if(d <= CHECKIN_RADIUS_M){
+      doStamp(no, todayISO());
+    }else{
+      hint.textContent = `${s.name}まで あと${fmtDist(d)} あります。境内に着いたらもう一度どうぞ。`;
+    }
+  }, err=>{
+    hint.textContent = "現在地が取得できませんでした（位置情報の許可が必要です）。「日付を選んで押す」でも記録できます。";
+  }, {enableHighAccuracy:true, timeout:12000, maximumAge:30000});
+}
+/* ================= 現在地・近い順 ================= */
+function locate(){
+  if(!navigator.geolocation){ toast("この環境では位置情報が使えません"); return; }
+  toast("現在地を確認しています…");
+  navigator.geolocation.getCurrentPosition(pos=>{
+    lastPos = {lat:pos.coords.latitude, lng:pos.coords.longitude};
+    renderList();
+    renderNear();
+    if(map){
+      showMe(lastPos);
+      map.panTo(lastPos); map.setZoom(15);
+    }
+    toast("現在地を表示しました");
+  }, ()=>toast("現在地が取得できませんでした（位置情報の許可をご確認ください）"),
+  {enableHighAccuracy:true, timeout:12000});
+}
+$("#btnLocate").addEventListener("click", locate);
+function renderNear(){
+  if(!lastPos) return;
+  const card = $("#nearCard"), rows = $("#nearRows");
+  const near = SHRINES.filter(s=>!rec(s.no)?.stamp)
+    .map(s=>({s, d:distM(lastPos, s)})).sort((a,b)=>a.d-b.d).slice(0,5);
+  rows.innerHTML = "";
+  near.forEach(({s,d})=>{
+    const row = document.createElement("button");
+    row.className = "row";
+    row.innerHTML = `<span class="rno">${s.no}</span>
+      <span class="rmain"><div class="rname">${s.name}</div>
+      <div class="rtag">${s.tagline || s.address.replace("金沢市","")}</div></span>
+      <span class="rdist">${fmtDist(d)}</span>`;
+    row.addEventListener("click", ()=>openSheet(s.no));
+    rows.appendChild(row);
+  });
+  card.style.display = near.length ? "block" : "none";
+}
+
+/* ================= Googleマップ ================= */
+let map = null, markers = {}, meMarker = null;
+function markerIcon(stamped){
+  const color = stamped ? "%23b8371f" : "%239b9083";
+  return {
+    url: `data:image/svg+xml;charset=UTF-8,<svg xmlns="http://www.w3.org/2000/svg" width="34" height="34"><circle cx="17" cy="17" r="13" fill="${color}" stroke="white" stroke-width="2.5"/></svg>`,
+    scaledSize: new google.maps.Size(34,34),
+    labelOrigin: new google.maps.Point(17,17)
+  };
+}
+function initMap(){
+  map = new google.maps.Map(document.getElementById("gmap"), {
+    center: {lat:36.5745, lng:136.6602}, zoom: 13,
+    clickableIcons:false, mapTypeControl:false, streetViewControl:false, fullscreenControl:true,
+    gestureHandling:"greedy"
+  });
+  SHRINES.forEach(s=>{
+    const m = new google.maps.Marker({
+      position:{lat:s.lat, lng:s.lng}, map,
+      icon: markerIcon(!!rec(s.no)?.stamp),
+      label: {text:String(s.no), color:"#fff", fontSize:"12px", fontWeight:"700"},
+      title: `${s.no} ${s.name}`
+    });
+    m.addListener("click", ()=>openSheet(s.no));
+    markers[s.no] = m;
+  });
+  fitAll();
+}
+function refreshMarkers(){
+  if(!map) return;
+  SHRINES.forEach(s=>markers[s.no]?.setIcon(markerIcon(!!rec(s.no)?.stamp)));
+}
+function showMe(pos){
+  if(!map) return;
+  if(!meMarker){
+    meMarker = new google.maps.Marker({map, position:pos, zIndex:99,
+      icon:{ url:'data:image/svg+xml;charset=UTF-8,<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22"><circle cx="11" cy="11" r="7" fill="%234285F4" stroke="white" stroke-width="3"/></svg>',
+        scaledSize:new google.maps.Size(22,22)}});
+  }else meMarker.setPosition(pos);
+}
+function fitAll(){
+  if(!map) return;
+  const b = new google.maps.LatLngBounds();
+  SHRINES.forEach(s=>b.extend({lat:s.lat, lng:s.lng}));
+  map.fitBounds(b, 40);
+}
+$("#btnFit").addEventListener("click", fitAll);
+function loadMapsAPI(){
+  if(!GMAPS_API_KEY){ return; }
+  $("#mapEmpty").style.display = "none";
+  const sc = document.createElement("script");
+  sc.src = `https://maps.googleapis.com/maps/api/js?key=${GMAPS_API_KEY}&callback=initMap&language=ja&region=JP`;
+  sc.async = true;
+  window.initMap = initMap;
+  document.head.appendChild(sc);
+}
+
+/* ================= バックアップ ================= */
+$("#btnExport").addEventListener("click", ()=>{
+  const json = JSON.stringify(store);
+  $("#ioArea").value = json;
+  if(navigator.clipboard) navigator.clipboard.writeText(json).then(()=>toast("記録をコピーしました（メモ帳などに保存を）"));
+});
+$("#btnImport").addEventListener("click", ()=>{
+  try{
+    const s = JSON.parse($("#ioArea").value);
+    if(!s.byNo) throw new Error("形式が違います");
+    const n = Object.values(s.byNo).filter(r=>r.stamp).length;
+    if(confirm(`読み込むと今の記録は置き換わります。押印${n}件の記録を読み込みますか？`)){
+      store = s; saveStore(store); refreshAll(); toast("記録を読み込みました");
+    }
+  }catch(e){ toast("読み込めませんでした。書き出したJSONをそのまま貼ってください"); }
+});
+
+/* ================= 起動 ================= */
+function refreshAll(rerenderBook=true){
+  refreshProgress();
+  if(rerenderBook) renderBook();
+  renderList();
+  refreshMarkers();
+  renderNear();
+}
+refreshAll();
+loadMapsAPI();
+</script>
+</body>
+</html>

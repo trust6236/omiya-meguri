@@ -1,0 +1,12 @@
+{
+  "name": "金沢 お宮さんめぐり",
+  "short_name": "お宮さんめぐり",
+  "description": "金沢31社スタンプラリーのデジタル押印帳",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#faf5ec",
+  "theme_color": "#b8371f",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
