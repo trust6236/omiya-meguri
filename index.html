@@ -177,6 +177,16 @@ body.sheet-open{overflow:hidden}
   background:var(--bg);color:var(--ink);padding:8px;font-family:monospace}
 .foot{margin-top:26px;text-align:center;font-size:.7rem;color:var(--muted)}
 
+/* ---------- 写真 ---------- */
+.photo-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+.photo-thumb{width:72px;height:72px;border-radius:10px;object-fit:cover;border:1px solid var(--line);cursor:pointer;background:var(--bg)}
+.photo-add{width:72px;height:72px;border-radius:10px;border:1.5px dashed var(--line);display:flex;align-items:center;justify-content:center;font-size:1.05rem;color:var(--muted);transition:background .15s}
+.photo-add:hover{background:var(--shu-soft)}
+.pviewer{position:fixed;inset:0;background:rgba(10,5,2,.9);z-index:80;display:none;align-items:center;justify-content:center;flex-direction:column;gap:14px;padding:16px}
+.pviewer.on{display:flex}
+.pviewer img{max-width:100%;max-height:76vh;border-radius:12px;background:#222}
+.pviewer .chip-btn{background:var(--card)}
+
 .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(80px);z-index:70;
   background:var(--ink);color:var(--bg);padding:10px 18px;border-radius:999px;font-size:.84rem;font-weight:700;
   transition:transform .25s;max-width:90vw;text-align:center}
@@ -287,6 +297,15 @@ body.sheet-open{overflow:hidden}
 <div class="sheet" id="sheet">
   <div class="sheet-in" id="sheetIn"></div>
 </div>
+
+<div class="pviewer" id="pviewer">
+  <img id="pvImg" alt="参拝の写真">
+  <div style="display:flex;gap:10px">
+    <button class="chip-btn" id="pvDel">この写真を削除</button>
+    <button class="chip-btn" id="pvClose">閉じる</button>
+  </div>
+</div>
+<input type="file" id="photoFile" accept="image/*" style="display:none">
 
 <div class="toast" id="toast"></div>
 
@@ -457,6 +476,7 @@ function openSheet(no){
       <span style="color:var(--muted);font-size:.78rem" id="goshuinDate">${r?.goshuin ? fmtDate(r.goshuin) : ""}</span>
     </div>
     <textarea class="memo" id="memoBox" placeholder="メモ（お参りの思い出、御朱印の受付時間など）">${r?.memo || ""}</textarea>
+    <div class="sh-sec"><b>写真（御朱印・境内など）</b><div class="photo-row" id="photoRow"></div></div>
     <div class="sh-sec"><b>ご由緒</b>${s.yuisho || "—"}</div>
     <div class="sh-sec"><b>御祭神</b>${s.saijin || "—"}</div>
     <div class="sh-sec"><b>鎮座地</b>${s.address}${s.tel ? `　☎ ${s.tel}` : ""}</div>
@@ -497,9 +517,10 @@ function openSheet(no){
       touchRec(no).stamp = null; saveStore(store); schedulePush(); refreshAll(); openSheet(no);
     }
   });
+  renderPhotos(no);
 }
 function ensureRec(no){
-  if(!store.byNo[no]) store.byNo[no] = {stamp:null, goshuin:null, memo:"", u:0};
+  if(!store.byNo[no]) store.byNo[no] = {stamp:null, goshuin:null, memo:"", u:0, photos:[]};
   return store.byNo[no];
 }
 function touchRec(no){
@@ -677,7 +698,7 @@ function mergeStores(a, b){
   new Set([...Object.keys(a.byNo||{}), ...Object.keys(b.byNo||{})]).forEach(no=>{
     const ra=(a.byNo||{})[no], rb=(b.byNo||{})[no];
     const pick = (ra && rb) ? (((rb.u||0) > (ra.u||0)) ? rb : ra) : (ra || rb);
-    out.byNo[no] = {stamp:pick.stamp||null, goshuin:pick.goshuin||null, memo:pick.memo||"", u:pick.u||0};
+    out.byNo[no] = {stamp:pick.stamp||null, goshuin:pick.goshuin||null, memo:pick.memo||"", u:pick.u||0, photos:pick.photos||[]};
     if(JSON.stringify(out.byNo[no]) !== JSON.stringify(ra||null)) changedA = true;
     if(JSON.stringify(out.byNo[no]) !== JSON.stringify(rb||null)) changedB = true;
   });
@@ -708,7 +729,7 @@ async function pushSync(){
     setSyncStat("⟳");
     const pruned = {};
     Object.entries(store.byNo).forEach(([no, r])=>{
-      if(r.stamp || r.goshuin || (r.memo && r.memo.trim()) || (r.u||0) > 0) pruned[no] = r;
+      if(r.stamp || r.goshuin || (r.memo && r.memo.trim()) || (r.photos && r.photos.length) || (r.u||0) > 0) pruned[no] = r;
     });
     const res = await fetch(url, {method:"POST", headers:{"Content-Type":"text/plain"},
       body: JSON.stringify({v:1, byNo: pruned, names: NAMES})});
@@ -745,6 +766,94 @@ $("#btnSyncNow").addEventListener("click", ()=>{ if(!syncUrl()){ toast("先に�
   }catch(e){}
 })();
 document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) pullSync(); });
+
+/* ================= 写真（ドライブ保存） ================= */
+function thumbUrl(id, w){ return `https://drive.google.com/thumbnail?id=${id}&sz=w${w}`; }
+function renderPhotos(no){
+  const row = $("#photoRow"); if(!row) return;
+  const r = rec(no);
+  row.innerHTML = "";
+  (r?.photos || []).forEach(p=>{
+    const img = document.createElement("img");
+    img.className = "photo-thumb";
+    img.loading = "lazy";
+    img.src = thumbUrl(p.id, 200);
+    img.alt = "写真";
+    img.addEventListener("click", ()=>openViewer(no, p.id));
+    row.appendChild(img);
+  });
+  const add = document.createElement("button");
+  add.className = "photo-add";
+  add.textContent = "📷＋";
+  add.addEventListener("click", ()=>{
+    if(!syncUrl()){ toast("写真は「記録の同期」を設定すると使えます"); return; }
+    $("#photoFile").click();
+  });
+  row.appendChild(add);
+}
+async function fileToJpegB64(file, maxDim=1600, q=0.82){
+  let src, iw, ih;
+  try{
+    src = await createImageBitmap(file, {imageOrientation:"from-image"});
+    iw = src.width; ih = src.height;
+  }catch(e){
+    src = await new Promise((res, rej)=>{
+      const im = new Image();
+      im.onload = ()=>res(im); im.onerror = rej;
+      im.src = URL.createObjectURL(file);
+    });
+    iw = src.naturalWidth; ih = src.naturalHeight;
+  }
+  const sc = Math.min(1, maxDim / Math.max(iw, ih));
+  const c = document.createElement("canvas");
+  c.width = Math.max(1, Math.round(iw*sc)); c.height = Math.max(1, Math.round(ih*sc));
+  c.getContext("2d").drawImage(src, 0, 0, c.width, c.height);
+  return c.toDataURL("image/jpeg", q).split(",")[1];
+}
+async function uploadPhoto(no, file){
+  const url = syncUrl();
+  if(!url || !file) return;
+  try{
+    toast("写真を保存しています…");
+    const b64 = await fileToJpegB64(file);
+    const s = SHRINES.find(x=>x.no===no);
+    const res = await fetch(url, {method:"POST", headers:{"Content-Type":"text/plain"},
+      body: JSON.stringify({action:"photo_add", no, name: s.name, ts: todayISO(), data: b64})});
+    const out = await res.json();
+    if(!out || !out.ok) throw new Error("save failed");
+    const rr = touchRec(no);
+    (rr.photos = rr.photos || []).push({id: out.id, ts: todayISO()});
+    saveStore(store); schedulePush();
+    renderPhotos(no);
+    toast("写真を保存しました 📷");
+  }catch(e){ toast("写真を保存できませんでした（電波をご確認ください）"); }
+}
+$("#photoFile").addEventListener("change", e=>{
+  const f = e.target.files && e.target.files[0];
+  e.target.value = "";
+  if(f && sheetNo) uploadPhoto(sheetNo, f);
+});
+let pvCtx = null;
+function openViewer(no, id){
+  pvCtx = {no, id};
+  $("#pvImg").src = thumbUrl(id, 1600);
+  $("#pviewer").classList.add("on");
+}
+$("#pvClose").addEventListener("click", ()=>$("#pviewer").classList.remove("on"));
+$("#pvDel").addEventListener("click", async ()=>{
+  if(!pvCtx) return;
+  if(!confirm("この写真を削除しますか？（ドライブのゴミ箱に移ります）")) return;
+  try{
+    await fetch(syncUrl(), {method:"POST", headers:{"Content-Type":"text/plain"},
+      body: JSON.stringify({action:"photo_del", id: pvCtx.id})});
+  }catch(e){}
+  const rr = touchRec(pvCtx.no);
+  rr.photos = (rr.photos || []).filter(p=>p.id !== pvCtx.id);
+  saveStore(store); schedulePush();
+  $("#pviewer").classList.remove("on");
+  renderPhotos(pvCtx.no);
+  toast("写真を削除しました");
+});
 
 /* ================= バックアップ ================= */
 $("#btnExport").addEventListener("click", ()=>{
