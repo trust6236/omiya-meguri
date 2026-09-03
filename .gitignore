@@ -1,5 +1,6 @@
 docs/
 scripts/
+gas/
 icon.ico
 data/*
 !data/shrines.js

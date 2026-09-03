@@ -234,6 +234,7 @@ body.sheet-open{overflow:hidden}
       </div>
       <div class="map-foot">
         <button class="chip-btn" id="btnLocate">📍 現在地</button>
+        <button class="chip-btn" id="btnRoute">🥾 残りを回るルート</button>
         <button class="chip-btn" id="btnFit">全体を見る</button>
         <span class="legend">未参拝<i style="background:#9b9083"></i>参拝済<i style="background:var(--shu)"></i></span>
       </div>
@@ -258,15 +259,27 @@ body.sheet-open{overflow:hidden}
   </section>
 
   <details class="tools card">
-    <summary>記録のバックアップ（書き出し・読み込み）</summary>
+    <summary>記録の同期とバックアップ <span id="syncStat"></span></summary>
     <div class="tools-in">
-      <button class="chip-btn" id="btnExport">記録を書き出す</button>
-      <button class="chip-btn" id="btnImport">貼り付けた記録を読み込む</button>
+      <div style="width:100%">
+        <div style="font-size:.78rem;font-weight:700;margin-bottom:4px">スプレッドシート同期（この端末に一度だけ設定）</div>
+        <input id="syncUrlBox" type="url" placeholder="同期用のURL（ジェリーから受け取ったもの）を貼り付け"
+          style="width:100%;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);padding:8px 10px;font-size:.78rem">
+        <div style="margin-top:6px;display:flex;gap:8px">
+          <button class="chip-btn" id="btnSyncSave">同期を設定</button>
+          <button class="chip-btn" id="btnSyncOff">同期を切る</button>
+          <button class="chip-btn" id="btnSyncNow">今すぐ同期</button>
+        </div>
+      </div>
+      <div style="width:100%;border-top:1px solid var(--line);margin-top:10px;padding-top:10px">
+        <button class="chip-btn" id="btnExport">記録を書き出す</button>
+        <button class="chip-btn" id="btnImport">貼り付けた記録を読み込む</button>
+      </div>
       <textarea id="ioArea" placeholder="書き出すとここにJSONが出ます。別の端末ではここに貼り付けて「読み込む」。"></textarea>
     </div>
   </details>
 
-  <div class="foot">金沢お宮さんめぐり デジタル押印帳（自分用）<br>神社の情報は石川県神社庁の公開ページに基づきます</div>
+  <div class="foot">金沢お宮さんめぐり デジタル押印帳（自分用）<br>神社の情報は石川県神社庁の公開ページに基づきます　<a href="admin.html" style="color:inherit">管理</a></div>
 </div>
 
 <!-- 神社シート -->
@@ -291,7 +304,7 @@ function loadStore(){
   if(!s || !s.byNo){
     s = {v:1, byNo:{}};
     (typeof INITIAL_RECORDS !== "undefined" ? INITIAL_RECORDS : []).forEach(r=>{
-      s.byNo[r.no] = {stamp:r.stamp_date, goshuin:null, memo:r.memo || ""};
+      s.byNo[r.no] = {stamp:r.stamp_date, goshuin:null, memo:r.memo || "", u:0};
     });
     saveStore(s);
   }
@@ -458,15 +471,16 @@ function openSheet(no){
   document.body.classList.add("sheet-open");
 
   $("#ckGoshuin").addEventListener("change", e=>{
-    ensureRec(no).goshuin = e.target.checked ? todayISO() : null;
+    touchRec(no).goshuin = e.target.checked ? todayISO() : null;
     saveStore(store);
+    schedulePush();
     $("#goshuinDate").textContent = e.target.checked ? fmtDate(todayISO()) : "";
     refreshAll(false);
   });
   let memoTimer=null;
   $("#memoBox").addEventListener("input", e=>{
     clearTimeout(memoTimer);
-    memoTimer = setTimeout(()=>{ ensureRec(no).memo = e.target.value; saveStore(store); }, 400);
+    memoTimer = setTimeout(()=>{ touchRec(no).memo = e.target.value; saveStore(store); schedulePush(); }, 400);
   });
   $("#btnCheckin")?.addEventListener("click", ()=>checkin(no));
   $("#btnManual")?.addEventListener("click", ()=>{
@@ -480,13 +494,18 @@ function openSheet(no){
   });
   $("#btnUnstamp")?.addEventListener("click", ()=>{
     if(confirm(`${s.name}の押印（${fmtDate(r.stamp)}）を取り消しますか？`)){
-      ensureRec(no).stamp = null; saveStore(store); refreshAll(); openSheet(no);
+      touchRec(no).stamp = null; saveStore(store); schedulePush(); refreshAll(); openSheet(no);
     }
   });
 }
 function ensureRec(no){
-  if(!store.byNo[no]) store.byNo[no] = {stamp:null, goshuin:null, memo:""};
+  if(!store.byNo[no]) store.byNo[no] = {stamp:null, goshuin:null, memo:"", u:0};
   return store.byNo[no];
+}
+function touchRec(no){
+  const r = ensureRec(no);
+  r.u = Date.now();
+  return r;
 }
 function closeSheet(){
   $("#backdrop").classList.remove("on");
@@ -498,8 +517,9 @@ $("#backdrop").addEventListener("click", closeSheet);
 
 /* ================= 押印 ================= */
 function doStamp(no, dateISO){
-  ensureRec(no).stamp = dateISO;
+  touchRec(no).stamp = dateISO;
   saveStore(store);
+  schedulePush();
   refreshAll();
   const s = SHRINES.find(x=>x.no===no);
   closeSheet();
@@ -620,6 +640,112 @@ function loadMapsAPI(){
   document.head.appendChild(sc);
 }
 
+/* ================= ルート提案 ================= */
+function buildRoute(){
+  if(!lastPos){ toast("まず「📍 現在地」を押してください"); return; }
+  const remain = SHRINES.filter(s=>!rec(s.no)?.stamp);
+  if(!remain.length){ toast("全社参拝済みです！おめでとうございます"); return; }
+  // 現在地から近い順に「次はいちばん近い所」方式でつなぐ（最大10社）
+  const chain = [];
+  let cur = lastPos;
+  const pool = [...remain];
+  while(pool.length && chain.length < 10){
+    pool.sort((a,b)=>distM(cur,a)-distM(cur,b));
+    const next = pool.shift();
+    chain.push(next); cur = next;
+  }
+  const dest = chain[chain.length-1];
+  const ways = chain.slice(0,-1).map(s=>`${s.lat},${s.lng}`).join("|");
+  const url = `https://www.google.com/maps/dir/?api=1&origin=${lastPos.lat},${lastPos.lng}`
+    + `&destination=${dest.lat},${dest.lng}`
+    + (ways ? `&waypoints=${encodeURIComponent(ways)}` : "")
+    + `&travelmode=driving`;
+  toast(remain.length > 10 ? `まず近い${chain.length}社ぶんのルートを開きます` : `残り${chain.length}社のルートを開きます`);
+  window.open(url, "_blank");
+}
+$("#btnRoute").addEventListener("click", buildRoute);
+
+/* ================= スプレッドシート同期 ================= */
+const SYNC_KEY = "omiya_sync_url";
+const NAMES = Object.fromEntries(SHRINES.map(s=>[s.no, s.name]));
+function syncUrl(){ try{ return localStorage.getItem(SYNC_KEY) || ""; }catch(e){ return ""; } }
+let pushTimer = null;
+function setSyncStat(txt){ const el=$("#syncStat"); if(el) el.textContent = txt; }
+function mergeStores(a, b){
+  const out = {v:1, byNo:{}};
+  let changedA=false, changedB=false;
+  new Set([...Object.keys(a.byNo||{}), ...Object.keys(b.byNo||{})]).forEach(no=>{
+    const ra=(a.byNo||{})[no], rb=(b.byNo||{})[no];
+    const pick = (ra && rb) ? (((rb.u||0) > (ra.u||0)) ? rb : ra) : (ra || rb);
+    out.byNo[no] = {stamp:pick.stamp||null, goshuin:pick.goshuin||null, memo:pick.memo||"", u:pick.u||0};
+    if(JSON.stringify(out.byNo[no]) !== JSON.stringify(ra||null)) changedA = true;
+    if(JSON.stringify(out.byNo[no]) !== JSON.stringify(rb||null)) changedB = true;
+  });
+  return {merged:out, changedA, changedB};
+}
+async function pullSync(){
+  const url = syncUrl(); if(!url) return;
+  try{
+    setSyncStat("⟳");
+    const res = await fetch(url);
+    const remote = await res.json();
+    if(remote && remote.byNo){
+      const {merged, changedA, changedB} = mergeStores(store, remote);
+      if(changedA){ store = merged; saveStore(store); refreshAll(); }
+      if(changedB){ schedulePush(300); }
+    }
+    setSyncStat("✓同期済み");
+  }catch(e){ setSyncStat("△同期できず（電波？）"); }
+}
+function schedulePush(delay=2000){
+  if(!syncUrl()){ return; }
+  clearTimeout(pushTimer);
+  pushTimer = setTimeout(pushSync, delay);
+}
+async function pushSync(){
+  const url = syncUrl(); if(!url) return;
+  try{
+    setSyncStat("⟳");
+    const pruned = {};
+    Object.entries(store.byNo).forEach(([no, r])=>{
+      if(r.stamp || r.goshuin || (r.memo && r.memo.trim()) || (r.u||0) > 0) pruned[no] = r;
+    });
+    const res = await fetch(url, {method:"POST", headers:{"Content-Type":"text/plain"},
+      body: JSON.stringify({v:1, byNo: pruned, names: NAMES})});
+    const remote = await res.json();
+    if(remote && remote.byNo){
+      const {merged, changedA} = mergeStores(store, remote);
+      if(changedA){ store = merged; saveStore(store); refreshAll(); }
+    }
+    setSyncStat("✓同期済み");
+  }catch(e){ setSyncStat("△同期できず（電波？）"); }
+}
+$("#btnSyncSave").addEventListener("click", ()=>{
+  const v = $("#syncUrlBox").value.trim();
+  if(!/^https:\/\/script\.google\.com\//.test(v)){ toast("script.google.com のURLを貼ってください"); return; }
+  try{ localStorage.setItem(SYNC_KEY, v); }catch(e){}
+  toast("同期を設定しました"); pullSync();
+});
+$("#btnSyncOff").addEventListener("click", ()=>{
+  try{ localStorage.removeItem(SYNC_KEY); }catch(e){}
+  setSyncStat(""); toast("同期を切りました（記録はこの端末に残ります）");
+});
+$("#btnSyncNow").addEventListener("click", ()=>{ if(!syncUrl()){ toast("先に同期用URLを設定してください"); return; } pullSync(); });
+
+/* URL引数 ?sync=... で同期をワンタップ設定（スマホ用） */
+(function(){
+  try{
+    const p = new URLSearchParams(location.search);
+    const s = p.get("sync");
+    if(s && /^https:\/\/script\.google\.com\//.test(s)){
+      localStorage.setItem(SYNC_KEY, s);
+      history.replaceState(null, "", location.pathname);
+      setTimeout(()=>toast("同期の設定を保存しました"), 400);
+    }
+  }catch(e){}
+})();
+document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) pullSync(); });
+
 /* ================= バックアップ ================= */
 $("#btnExport").addEventListener("click", ()=>{
   const json = JSON.stringify(store);
@@ -632,7 +758,7 @@ $("#btnImport").addEventListener("click", ()=>{
     if(!s.byNo) throw new Error("形式が違います");
     const n = Object.values(s.byNo).filter(r=>r.stamp).length;
     if(confirm(`読み込むと今の記録は置き換わります。押印${n}件の記録を読み込みますか？`)){
-      store = s; saveStore(store); refreshAll(); toast("記録を読み込みました");
+      store = s; saveStore(store); schedulePush(); refreshAll(); toast("記録を読み込みました");
     }
   }catch(e){ toast("読み込めませんでした。書き出したJSONをそのまま貼ってください"); }
 });
@@ -647,6 +773,7 @@ function refreshAll(rerenderBook=true){
 }
 refreshAll();
 loadMapsAPI();
+if(syncUrl()){ $("#syncUrlBox").value = syncUrl(); pullSync(); }
 </script>
 </body>
 </html>
