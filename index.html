@@ -195,17 +195,38 @@ body.sheet-open{overflow:hidden}
 .foot{margin-top:26px;text-align:center;font-size:.7rem;color:var(--muted)}
 
 /* ---------- 詳細の中の地図（現在地→神社） ---------- */
-.mapbox{margin-top:14px;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--bg)}
-.mapbox-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 12px}
-.mapbox-dist b{font-family:var(--serif);font-size:1.2rem;font-variant-numeric:tabular-nums;color:var(--shu)}
-.mapbox-dist span{font-size:.78rem;color:var(--muted);margin-left:8px}
+.mapbox{margin-top:14px;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--card)}
+.reach{padding:14px 14px 12px;text-align:center;background:rgba(184,55,31,.07)}
+.reach b{display:block;font-family:var(--serif);font-size:1.35rem;color:var(--shu);
+  font-variant-numeric:tabular-nums;line-height:1.25}
+.reach span{display:block;font-size:.76rem;color:var(--muted);margin-top:3px}
+.reach .chip-btn{margin-top:9px}
 .mapbox.arrived{border-color:var(--ok)}
-.mapbox.arrived .mapbox-dist b{color:var(--ok)}
-.mapbox.arrived .mapbox-dist span{color:var(--ok);font-weight:700}
+.mapbox.arrived .reach{background:rgba(58,125,68,.12)}
+.mapbox.arrived .reach b{color:var(--ok)}
+.mapbox.arrived .reach span{color:var(--ok);font-weight:700}
 .approach{height:5px;background:var(--line)}
 .approach>i{display:block;height:100%;width:0;background:var(--shu);transition:width .5s ease}
 .mapbox.arrived .approach>i{background:var(--ok)}
-#sheetMap{width:100%;height:190px;background:var(--line)}
+.maptools{display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:space-between;padding:10px 12px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--bg)}
+.seg button{padding:6px 12px;font-size:.75rem;font-weight:700;color:var(--muted);transition:background .15s}
+.seg button.on{background:var(--shu);color:#fff}
+.mapbtns{display:flex;gap:6px;flex-wrap:wrap}
+.chip-btn.tiny{text-decoration:none;display:inline-flex;align-items:center}
+.chip-btn.tiny.on{background:var(--shu);border-color:var(--shu);color:#fff}
+#sheetMap{width:100%;height:230px;background:var(--line)}
+.legend2{display:flex;flex-wrap:wrap;gap:5px 13px;padding:9px 12px;font-size:.71rem;
+  color:var(--muted);border-top:1px solid var(--line)}
+.legend2 span{display:inline-flex;align-items:center;gap:5px}
+.legend2 b{font-weight:700}
+.legend2 i{display:inline-block;flex:none}
+.legend2 i.dot{width:9px;height:9px;border-radius:50%}
+.legend2 i.dot.shu{background:var(--shu)}
+.legend2 i.dot.me{background:#4285F4}
+.legend2 i.box{width:13px;height:13px;border-radius:50%;border:1.5px solid var(--shu);background:rgba(184,55,31,.14)}
+.legend2 i.ring{width:13px;height:13px;border-radius:50%;border:1px solid var(--shu);opacity:.5}
+.legend2 i.dash{width:16px;height:0;border-top:2px dashed var(--shu)}
 @keyframes readyPulse{0%,100%{box-shadow:0 0 0 0 rgba(58,125,68,.55)}50%{box-shadow:0 0 0 9px rgba(58,125,68,0)}}
 .btn.primary.ready{background:var(--ok);border-color:var(--ok);animation:readyPulse 1.7s infinite}
 
@@ -336,12 +357,32 @@ body.sheet-open{overflow:hidden}
     <div class="grab"></div>
     <div id="sheetTop"></div>
     <section class="mapbox" id="sheetMapSec" style="display:none">
-      <div class="mapbox-head">
-        <div class="mapbox-dist"><b id="mapDist">—</b><span id="mapNote"></span></div>
-        <button class="chip-btn tiny" id="btnSheetLocate">📍 現在地から</button>
+      <div class="reach">
+        <b id="mapDist">—</b>
+        <span id="mapNote">現地に着くとボタンが押せるようになります</span>
+        <button class="chip-btn tiny" id="btnSheetLocate">📍 現在地から測る</button>
       </div>
       <div class="approach"><i id="approachFill"></i></div>
+      <div class="maptools">
+        <div class="seg" id="mapTypeSeg">
+          <button data-t="roadmap" class="on">地図</button>
+          <button data-t="hybrid">航空写真</button>
+          <button data-t="plain">うすい地図</button>
+        </div>
+        <div class="mapbtns">
+          <button class="chip-btn tiny" id="btnFollow">➤ 追いかける</button>
+          <a class="chip-btn tiny" id="btnRouteOne" target="_blank" rel="noopener">🧭 道順</a>
+          <button class="chip-btn tiny" id="btnWhole">◎ 全体を表示</button>
+        </div>
+      </div>
       <div id="sheetMap"></div>
+      <div class="legend2">
+        <span><i class="dot shu"></i><b id="legendName">神社</b></span>
+        <span><i class="dot me"></i>現在地</span>
+        <span><i class="box"></i>押印できる範囲（300m）</span>
+        <span><i class="ring"></i>100m・200m の目安</span>
+        <span><i class="dash"></i>目的地の方向（直線）</span>
+      </div>
     </section>
     <div id="sheetBottom"></div>
   </div>
@@ -583,6 +624,8 @@ function closeSheet(){
   $("#sheet").classList.remove("on");
   document.body.classList.remove("sheet-open");
   stopWatch();
+  followMe = false;
+  $("#btnFollow").classList.remove("on");
   sheetNo = null;
 }
 $("#backdrop").addEventListener("click", closeSheet);
@@ -850,7 +893,18 @@ $("#btnSyncNow").addEventListener("click", ()=>{ if(!syncUrl()){ toast("先に�
 document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) pullSync(); });
 
 /* ================= 詳細の中の地図（現在地→神社を点線で結ぶ） ================= */
-let sMap=null, sShrine=null, sMe=null, sLine=null, watchId=null, approachMax=0;
+let sMap=null, sShrine=null, sMe=null, sLine=null, sRings=[], watchId=null, approachMax=0, followMe=false;
+const PALE_STYLE = [
+  {elementType:"geometry", stylers:[{saturation:-72},{lightness:26}]},
+  {elementType:"labels.text.fill", stylers:[{lightness:12}]},
+  {elementType:"labels.icon", stylers:[{visibility:"off"}]},
+  {featureType:"poi", stylers:[{visibility:"off"}]},
+  {featureType:"transit", elementType:"labels.icon", stylers:[{visibility:"off"}]}
+];
+const RING_M = [CHECKIN_RADIUS_M, 200, 100];
+function fmtMeters(d){
+  return d < 2000 ? `${Math.round(d).toLocaleString("ja-JP")}m` : `${(d/1000).toFixed(1)}km`;
+}
 function meIconObj(){
   return { url:'data:image/svg+xml;charset=UTF-8,<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22"><circle cx="11" cy="11" r="7" fill="%234285F4" stroke="white" stroke-width="3"/></svg>',
     scaledSize:new google.maps.Size(22,22) };
@@ -876,10 +930,18 @@ function setupSheetMap(no){
       zoomControl:true, clickableIcons:false, gestureHandling:"cooperative"});
     sShrine = new google.maps.Marker({map:sMap});
     sMe = new google.maps.Marker({map:sMap, zIndex:99, icon:meIconObj()});
-    sLine = new google.maps.Polyline({map:sMap, strokeOpacity:0, icons:[{
+    sLine = new google.maps.Polyline({map:sMap, strokeOpacity:0, zIndex:3, icons:[{
       icon:{path:"M 0,-1 0,1", strokeColor:"#b8371f", strokeOpacity:.95, scale:3.2},
       offset:"0", repeat:"11px"}]});
+    sRings = RING_M.map((r, i) => new google.maps.Circle({
+      map:sMap, radius:r, clickable:false, zIndex:1,
+      strokeColor:"#b8371f", strokeOpacity: i===0 ? .85 : .5, strokeWeight: i===0 ? 2.2 : 1.2,
+      fillColor:"#b8371f", fillOpacity: i===0 ? .15 : 0
+    }));
   }
+  sRings.forEach(c=>c.setCenter(pos));
+  $("#btnRouteOne").href = `https://www.google.com/maps/dir/?api=1&destination=${s.lat},${s.lng}`;
+  $("#legendName").textContent = s.name;
   sShrine.setPosition(pos);
   sShrine.setIcon(markerIcon(!!rec(no)?.stamp));
   sShrine.setLabel({text:String(no), color:"#fff", fontSize:"12px", fontWeight:"700"});
@@ -894,7 +956,8 @@ function setupSheetMap(no){
 }
 /* 2点の中点を中心に、両方が収まるズームを距離から直に決める（fitBoundsは生成直後に効かないことがある） */
 function framePair(a, b){
-  const d = Math.max(60, distM(a, b));
+  /* 300mの円がいつも見えるよう、近すぎるときも最低700m相当で引く */
+  const d = Math.max(700, distM(a, b) * 1.5);
   const z = Math.max(10, Math.min(17, Math.floor(Math.log2(18855000 / d))));
   sMap.setCenter({lat:(a.lat + b.lat)/2, lng:(a.lng + b.lng)/2});
   sMap.setZoom(z);
@@ -906,8 +969,8 @@ function updateSheetMap(no, fit){
   const box = $("#sheetMapSec"), fill = $("#approachFill");
   if(!lastPos){
     sMe.setMap(null); sLine.setPath([]);
-    $("#mapDist").textContent = "—";
-    $("#mapNote").textContent = "現在地からの道のりを出せます";
+    $("#mapDist").textContent = "現在地を確かめましょう";
+    $("#mapNote").textContent = `境内から${CHECKIN_RADIUS_M}m以内に入ると押印できます`;
     $("#btnSheetLocate").style.display = "";
     fill.style.width = "0"; box.classList.remove("arrived");
     return;
@@ -918,11 +981,15 @@ function updateSheetMap(no, fit){
   const d = distM(lastPos, s);
   approachMax = approachBase(no, d);
   const arrived = d <= CHECKIN_RADIUS_M;
-  $("#mapDist").textContent = fmtDist(d);
+  $("#mapDist").textContent = arrived ? "現地に着きました" : `あと約 ${fmtMeters(d)} です`;
   $("#mapNote").textContent = arrived
-    ? (rec(no)?.stamp ? "境内の近くです" : "境内の近くです。押印できます ㊞")
-    : goTime(d) + "・近づくと縮みます";
+    ? `約${fmtMeters(d)}・` + (rec(no)?.stamp ? "この神社は押印済みです" : "「現地で押印」が押せます ㊞")
+    : `${goTime(d)}・現地に着くとボタンが押せるようになります`;
   box.classList.toggle("arrived", arrived);
+  sRings.forEach((c, i)=>c.setOptions({
+    strokeColor: arrived ? "#3a7d44" : "#b8371f",
+    fillColor:   arrived ? "#3a7d44" : "#b8371f"
+  }));
   $("#btnCheckin")?.classList.toggle("ready", arrived);
   fill.style.width = Math.round(Math.min(100, Math.max(0, (1 - d/approachMax) * 100))) + "%";
   if(fit) framePair(lastPos, pos);
@@ -933,11 +1000,39 @@ function startWatch(no){
   watchId = navigator.geolocation.watchPosition(p=>{
     lastPos = {lat:p.coords.latitude, lng:p.coords.longitude};
     if(sheetNo === no) updateSheetMap(no, false);
+    if(followMe && sMap) sMap.panTo(lastPos);
     renderNear();
     if(map) showMe(lastPos);
   }, ()=>{}, {enableHighAccuracy:true, maximumAge:4000, timeout:20000});
 }
 function stopWatch(){ if(watchId != null){ navigator.geolocation.clearWatch(watchId); watchId = null; } }
+/* 地図の見た目を切り替える */
+$("#mapTypeSeg").addEventListener("click", e=>{
+  const b = e.target.closest("button"); if(!b || !sMap) return;
+  [...$("#mapTypeSeg").children].forEach(x=>x.classList.toggle("on", x===b));
+  const t = b.dataset.t;
+  if(t === "hybrid"){ sMap.setMapTypeId("hybrid"); sMap.setOptions({styles:[]}); }
+  else if(t === "plain"){ sMap.setMapTypeId("roadmap"); sMap.setOptions({styles:PALE_STYLE}); }
+  else { sMap.setMapTypeId("roadmap"); sMap.setOptions({styles:[]}); }
+});
+/* 追いかける（現在地に地図をついていかせる） */
+$("#btnFollow").addEventListener("click", ()=>{
+  followMe = !followMe;
+  $("#btnFollow").classList.toggle("on", followMe);
+  if(followMe){
+    if(sheetNo) startWatch(sheetNo);
+    if(lastPos && sMap){ sMap.panTo(lastPos); if(sMap.getZoom() < 16) sMap.setZoom(16); }
+    else toast("現在地を確認しています…");
+  }
+});
+/* 全体を表示（現在地と神社の両方が入るように戻す） */
+$("#btnWhole").addEventListener("click", ()=>{
+  if(!sMap || !sheetNo) return;
+  followMe = false; $("#btnFollow").classList.remove("on");
+  const s = SHRINES.find(x=>x.no===sheetNo);
+  if(lastPos) framePair(lastPos, {lat:s.lat, lng:s.lng});
+  else { sMap.setCenter({lat:s.lat, lng:s.lng}); sMap.setZoom(15); }
+});
 $("#btnSheetLocate").addEventListener("click", ()=>{
   if(!navigator.geolocation){ toast("この環境では位置情報が使えません"); return; }
   $("#mapNote").textContent = "現在地を確認しています…";
