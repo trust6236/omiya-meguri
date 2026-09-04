@@ -215,7 +215,7 @@ body.sheet-open{overflow:hidden}
 .mapbtns{display:flex;gap:6px;flex-wrap:wrap}
 .chip-btn.tiny{text-decoration:none;display:inline-flex;align-items:center}
 .chip-btn.tiny.on{background:var(--shu);border-color:var(--shu);color:#fff}
-#sheetMap{width:100%;height:230px;background:var(--line)}
+#sheetMap{width:100%;height:345px;background:var(--line)}
 .legend2{display:flex;flex-wrap:wrap;gap:5px 13px;padding:9px 12px;font-size:.71rem;
   color:var(--muted);border-top:1px solid var(--line)}
 .legend2 span{display:inline-flex;align-items:center;gap:5px}
@@ -379,8 +379,8 @@ body.sheet-open{overflow:hidden}
       <div class="legend2">
         <span><i class="dot shu"></i><b id="legendName">神社</b></span>
         <span><i class="dot me"></i>現在地</span>
-        <span><i class="box"></i>押印できる範囲（300m）</span>
-        <span><i class="ring"></i>100m・200m の目安</span>
+        <span><i class="box"></i>押印できる範囲（150m）</span>
+        <span><i class="ring"></i>50m・100m の目安</span>
         <span><i class="dash"></i>目的地の方向（直線）</span>
       </div>
     </section>
@@ -403,7 +403,7 @@ body.sheet-open{overflow:hidden}
 <script>
 /* ================= 設定 ================= */
 const GMAPS_API_KEY = "AIzaSyBxIPDpXd9c8wQT4DQ8Zdqa2NDN9q23-gM"; // リファラー制限済み（trust6236.github.io と localhost:8642 のみで有効）
-const CHECKIN_RADIUS_M = 300;      // この距離以内なら「現地で押印」できる
+const CHECKIN_RADIUS_M = 150;      // この距離以内なら「現地で押印」できる
 const STORE_KEY = "omiya_records_v1";
 
 /* ================= 記録の保存 ================= */
@@ -901,7 +901,7 @@ const PALE_STYLE = [
   {featureType:"poi", stylers:[{visibility:"off"}]},
   {featureType:"transit", elementType:"labels.icon", stylers:[{visibility:"off"}]}
 ];
-const RING_M = [CHECKIN_RADIUS_M, 200, 100];
+const RING_M = [CHECKIN_RADIUS_M, 100, 50];
 function fmtMeters(d){
   return d < 2000 ? `${Math.round(d).toLocaleString("ja-JP")}m` : `${(d/1000).toFixed(1)}km`;
 }
@@ -958,8 +958,8 @@ function setupSheetMap(no){
 /* 2点の中点を中心に、両方が収まるズームを距離から直に決める（fitBoundsは生成直後に効かないことがある） */
 const VIEW_MARGIN = 1.3;   // 表示範囲のゆとり（1.3 = 従来の1.3倍の広さで写す）
 function framePair(a, b){
-  /* 300mの円がいつも見えるよう、近すぎるときも最低700m相当で引く */
-  const d = Math.max(700, distM(a, b) * 1.5);
+  /* 近づいたときは150mの円がはっきり見える大きさまで寄る */
+  const d = Math.max(250, distM(a, b) * 1.5);
   const base = Math.floor(Math.log2(18855000 / d));            // 従来の見え方
   const wide = sMap.get("isFractionalZoomEnabled")
     ? base - Math.log2(VIEW_MARGIN)                            // 小数ズームでぴったり1.3倍広く
