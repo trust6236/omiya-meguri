@@ -95,8 +95,25 @@ a{color:inherit}
 .map-empty{padding:34px 22px;text-align:center}
 .map-empty h3{font-family:var(--serif);margin-bottom:8px}
 .map-empty p{font-size:.85rem;color:var(--muted)}
-.near-list{margin-top:12px;padding:6px 0}
-.near-list h3{font-size:.8rem;color:var(--muted);padding:8px 16px 2px;font-weight:700}
+/* ---------- 近くのお宮さん（トップ常設） ---------- */
+.near-top{margin-top:12px;padding:12px 14px}
+.near-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.near-head h3{font-family:var(--serif);font-size:1rem;font-weight:700}
+.chip-btn.tiny{padding:5px 11px;font-size:.74rem}
+.near-row{display:flex;gap:10px;align-items:center;padding:9px 4px;border-top:1px solid var(--line);
+  cursor:pointer;transition:background .15s}
+.near-row:first-of-type{margin-top:6px}
+.near-row:hover{background:var(--shu-soft)}
+.near-row .d{font-family:var(--serif);font-variant-numeric:tabular-nums;font-size:.95rem;color:var(--shu);
+  min-width:60px;text-align:right;flex:none}
+.near-row .nm{flex:1;min-width:0}
+.near-row .nm b{display:block;font-size:.9rem;font-weight:700}
+.near-row .nm span{display:block;font-size:.72rem;color:var(--muted);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.near-row .nav{flex:none;font-size:.74rem;padding:6px 11px;border-radius:999px;border:1px solid var(--line);
+  text-decoration:none;font-weight:700;background:var(--bg);transition:background .15s}
+.near-row .nav:hover{background:var(--card)}
+.near-hint{font-size:.75rem;color:var(--muted);margin-top:8px}
 
 /* ---------- 押印帳 ---------- */
 .book-card{padding:14px}
@@ -226,6 +243,15 @@ body.sheet-open{overflow:hidden}
     <div class="goal-note" id="goalNote"></div>
   </section>
 
+  <section class="card near-top" id="nearTop">
+    <div class="near-head">
+      <h3>近くのお宮さん</h3>
+      <button class="chip-btn tiny" id="btnNearLocate">📍 現在地</button>
+    </div>
+    <div id="nearRows"></div>
+    <div class="near-hint" id="nearHint"></div>
+  </section>
+
   <nav class="tabs" id="tabs">
     <button data-v="map" class="on">地図</button>
     <button data-v="book">押印帳</button>
@@ -248,10 +274,6 @@ body.sheet-open{overflow:hidden}
         <button class="chip-btn" id="btnFit">全体を見る</button>
         <span class="legend">未参拝<i style="background:#9b9083"></i>参拝済<i style="background:var(--shu)"></i></span>
       </div>
-    </div>
-    <div class="card near-list" id="nearCard" style="display:none">
-      <h3>ここから近い未参拝の神社</h3>
-      <div id="nearRows"></div>
     </div>
   </section>
 
@@ -585,23 +607,53 @@ function locate(){
   {enableHighAccuracy:true, timeout:12000});
 }
 $("#btnLocate").addEventListener("click", locate);
+$("#btnNearLocate").addEventListener("click", locate);
+/* 一度でも位置情報を許可していれば、開いたときに黙って取り直す（初回に勝手な確認は出さない） */
+async function autoLocate(){
+  if(!navigator.geolocation || !navigator.permissions) return;
+  try{
+    const st = await navigator.permissions.query({name:"geolocation"});
+    if(st.state !== "granted") return;
+  }catch(e){ return; }
+  navigator.geolocation.getCurrentPosition(pos=>{
+    lastPos = {lat:pos.coords.latitude, lng:pos.coords.longitude};
+    renderNear(); renderList(); if(map) showMe(lastPos);
+  }, ()=>{}, {enableHighAccuracy:false, timeout:10000, maximumAge:120000});
+}
+const NEAR_COUNT = 5;
+function goTime(m){
+  if(m <= 2500) return `徒歩${Math.max(1, Math.round(m/80))}分`;   // 分速80m
+  return `車${Math.max(1, Math.round(m/1000/25*60))}分`;           // 時速25km
+}
 function renderNear(){
-  if(!lastPos) return;
-  const card = $("#nearCard"), rows = $("#nearRows");
-  const near = SHRINES.filter(s=>!rec(s.no)?.stamp)
-    .map(s=>({s, d:distM(lastPos, s)})).sort((a,b)=>a.d-b.d).slice(0,5);
+  const rows = $("#nearRows"), hint = $("#nearHint");
+  if(!rows) return;
   rows.innerHTML = "";
+  const remain = SHRINES.filter(s=>!rec(s.no)?.stamp);
+  if(!remain.length){
+    hint.textContent = "🎉 31社すべて参拝済みです。紙の台紙を九番 尾山神社の社務所へどうぞ（8:30〜18:00）。";
+    return;
+  }
+  if(!lastPos){
+    hint.textContent = "「📍現在地」を押すと、いま近い順に候補を出します。";
+    return;
+  }
+  const near = remain.map(s=>({s, d:distM(lastPos, s)})).sort((a,b)=>a.d-b.d).slice(0, NEAR_COUNT);
   near.forEach(({s,d})=>{
-    const row = document.createElement("button");
-    row.className = "row";
-    row.innerHTML = `<span class="rno">${s.no}</span>
-      <span class="rmain"><div class="rname">${s.name}</div>
-      <div class="rtag">${s.tagline || s.address.replace("金沢市","")}</div></span>
-      <span class="rdist">${fmtDist(d)}</span>`;
-    row.addEventListener("click", ()=>openSheet(s.no));
+    const row = document.createElement("div");
+    row.className = "near-row";
+    row.innerHTML = `
+      <span class="d">${fmtDist(d)}</span>
+      <span class="nm">
+        <b>${s.name}${s.gosha ? ' <span style="color:var(--shu);font-size:.7rem;display:inline">［五社］</span>' : ''}</b>
+        <span>${goTime(d)}・${s.tagline || s.address.replace("金沢市","").replace(/[0-9０-９].*$/,"")}</span>
+      </span>
+      <a class="nav" href="https://www.google.com/maps/dir/?api=1&destination=${s.lat},${s.lng}"
+         target="_blank" rel="noopener">🧭</a>`;
+    row.addEventListener("click", e=>{ if(!e.target.closest(".nav")) openSheet(s.no); });
     rows.appendChild(row);
   });
-  card.style.display = near.length ? "block" : "none";
+  hint.textContent = `未参拝 ${remain.length}社のうち、近い${near.length}社。押すと詳しく見られます。`;
 }
 
 /* ================= Googleマップ ================= */
@@ -882,6 +934,7 @@ function refreshAll(rerenderBook=true){
 }
 refreshAll();
 loadMapsAPI();
+autoLocate();
 if(syncUrl()){ $("#syncUrlBox").value = syncUrl(); pullSync(); }
 </script>
 </body>
