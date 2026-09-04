@@ -738,6 +738,45 @@ function markerIcon(stamped){
     labelOrigin: new google.maps.Point(17,17)
   };
 }
+/* 一覧地図用：丸の右に神社名の小さな札を添える */
+function namedMarkerIcon(s, stamped){
+  const color = stamped ? "#b8371f" : "#9b9083";
+  const label = shortName(s.name);
+  const textW = Math.max(18, label.length * 12);
+  const padL = 6, padR = 8, pillX = 30;
+  const pillW = padL + textW + padR;
+  const w = pillX + pillW, h = 34;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">`
+    + `<rect x="${pillX}" y="7" width="${pillW}" height="20" rx="10" ry="10" `
+    + `fill="#fffaf3" fill-opacity="0.96" stroke="${color}" stroke-width="1.2"/>`
+    + `<text x="${pillX + padL}" y="17.5" font-family="'Hiragino Kaku Gothic ProN','Yu Gothic UI',sans-serif" `
+    + `font-size="11" font-weight="700" fill="${color}" dominant-baseline="central">${label}</text>`
+    + `<circle cx="17" cy="17" r="13" fill="${color}" stroke="white" stroke-width="2.5"/>`
+    + `<text x="17" y="17.5" font-family="sans-serif" font-size="12" font-weight="700" fill="white" `
+    + `text-anchor="middle" dominant-baseline="central">${s.no}</text></svg>`;
+  return {
+    url: "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(svg),
+    scaledSize: new google.maps.Size(w, h),
+    anchor: new google.maps.Point(17, h)
+  };
+}
+/* 引いた表示だと札が重なって団子になるので、番号だけの丸に切り替える版 */
+function plainNumberIcon(s, stamped){
+  const color = stamped ? "#b8371f" : "#9b9083";
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="34" height="34">`
+    + `<circle cx="17" cy="17" r="13" fill="${color}" stroke="white" stroke-width="2.5"/>`
+    + `<text x="17" y="17.5" font-family="sans-serif" font-size="12" font-weight="700" fill="white" `
+    + `text-anchor="middle" dominant-baseline="central">${s.no}</text></svg>`;
+  return {
+    url: "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(svg),
+    scaledSize: new google.maps.Size(34,34),
+    anchor: new google.maps.Point(17,34)
+  };
+}
+const NAME_ZOOM = 14;   // このズーム以上で神社名の札を出す
+function chipIcon(s, stamped){
+  return (map && map.getZoom() >= NAME_ZOOM) ? namedMarkerIcon(s, stamped) : plainNumberIcon(s, stamped);
+}
 function initMap(){
   map = new google.maps.Map(document.getElementById("gmap"), {
     center: {lat:36.5745, lng:136.6602}, zoom: 13,
@@ -747,19 +786,19 @@ function initMap(){
   SHRINES.forEach(s=>{
     const m = new google.maps.Marker({
       position:{lat:s.lat, lng:s.lng}, map,
-      icon: markerIcon(!!rec(s.no)?.stamp),
-      label: {text:String(s.no), color:"#fff", fontSize:"12px", fontWeight:"700"},
+      icon: chipIcon(s, !!rec(s.no)?.stamp),
       title: `${s.no} ${s.name}`
     });
     m.addListener("click", ()=>openSheet(s.no));
     markers[s.no] = m;
   });
   fitAll();
+  map.addListener("zoom_changed", refreshMarkers);
   if(sheetNo) setupSheetMap(sheetNo);   // 地図の読み込み前に詳細を開いていた場合
 }
 function refreshMarkers(){
   if(!map) return;
-  SHRINES.forEach(s=>markers[s.no]?.setIcon(markerIcon(!!rec(s.no)?.stamp)));
+  SHRINES.forEach(s=>markers[s.no]?.setIcon(chipIcon(s, !!rec(s.no)?.stamp)));
 }
 function showMe(pos){
   if(!map) return;
