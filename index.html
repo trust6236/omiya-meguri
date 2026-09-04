@@ -194,6 +194,21 @@ body.sheet-open{overflow:hidden}
   background:var(--bg);color:var(--ink);padding:8px;font-family:monospace}
 .foot{margin-top:26px;text-align:center;font-size:.7rem;color:var(--muted)}
 
+/* ---------- 詳細の中の地図（現在地→神社） ---------- */
+.mapbox{margin-top:14px;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--bg)}
+.mapbox-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 12px}
+.mapbox-dist b{font-family:var(--serif);font-size:1.2rem;font-variant-numeric:tabular-nums;color:var(--shu)}
+.mapbox-dist span{font-size:.78rem;color:var(--muted);margin-left:8px}
+.mapbox.arrived{border-color:var(--ok)}
+.mapbox.arrived .mapbox-dist b{color:var(--ok)}
+.mapbox.arrived .mapbox-dist span{color:var(--ok);font-weight:700}
+.approach{height:5px;background:var(--line)}
+.approach>i{display:block;height:100%;width:0;background:var(--shu);transition:width .5s ease}
+.mapbox.arrived .approach>i{background:var(--ok)}
+#sheetMap{width:100%;height:190px;background:var(--line)}
+@keyframes readyPulse{0%,100%{box-shadow:0 0 0 0 rgba(58,125,68,.55)}50%{box-shadow:0 0 0 9px rgba(58,125,68,0)}}
+.btn.primary.ready{background:var(--ok);border-color:var(--ok);animation:readyPulse 1.7s infinite}
+
 /* ---------- 写真 ---------- */
 .photo-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
 .photo-thumb{width:72px;height:72px;border-radius:10px;object-fit:cover;border:1px solid var(--line);cursor:pointer;background:var(--bg)}
@@ -317,7 +332,19 @@ body.sheet-open{overflow:hidden}
 <!-- 神社シート -->
 <div class="backdrop" id="backdrop"></div>
 <div class="sheet" id="sheet">
-  <div class="sheet-in" id="sheetIn"></div>
+  <div class="sheet-in">
+    <div class="grab"></div>
+    <div id="sheetTop"></div>
+    <section class="mapbox" id="sheetMapSec" style="display:none">
+      <div class="mapbox-head">
+        <div class="mapbox-dist"><b id="mapDist">—</b><span id="mapNote"></span></div>
+        <button class="chip-btn tiny" id="btnSheetLocate">📍 現在地から</button>
+      </div>
+      <div class="approach"><i id="approachFill"></i></div>
+      <div id="sheetMap"></div>
+    </section>
+    <div id="sheetBottom"></div>
+  </div>
 </div>
 
 <div class="pviewer" id="pviewer">
@@ -479,8 +506,7 @@ function openSheet(no){
          <button class="btn primary" id="btnManualGo">この日付で押す</button>
        </div>
        <div class="hint" id="checkinHint"></div></div>`;
-  $("#sheetIn").innerHTML = `
-    <div class="grab"></div>
+  $("#sheetTop").innerHTML = `
     <div class="sh-head">
       <div class="sh-no">${kanjiNo(no)}番</div>
       <div>
@@ -492,7 +518,8 @@ function openSheet(no){
       ${s.tagline ? `<span class="tagchip">${s.tagline}</span>` : ""}
       ${s.gosha ? '<span class="tagchip">金澤五社</span>' : ""}
     </div>
-    ${statusHTML}
+    ${statusHTML}`;
+  $("#sheetBottom").innerHTML = `
     <div class="goshuin-line">
       <label><input type="checkbox" id="ckGoshuin" ${r?.goshuin ? "checked" : ""}> 御朱印をいただいた</label>
       <span style="color:var(--muted);font-size:.78rem" id="goshuinDate">${r?.goshuin ? fmtDate(r.goshuin) : ""}</span>
@@ -540,6 +567,7 @@ function openSheet(no){
     }
   });
   renderPhotos(no);
+  setupSheetMap(no);
 }
 function ensureRec(no){
   if(!store.byNo[no]) store.byNo[no] = {stamp:null, goshuin:null, memo:"", u:0, photos:[]};
@@ -554,6 +582,7 @@ function closeSheet(){
   $("#backdrop").classList.remove("on");
   $("#sheet").classList.remove("on");
   document.body.classList.remove("sheet-open");
+  stopWatch();
   sheetNo = null;
 }
 $("#backdrop").addEventListener("click", closeSheet);
@@ -683,6 +712,7 @@ function initMap(){
     markers[s.no] = m;
   });
   fitAll();
+  if(sheetNo) setupSheetMap(sheetNo);   // 地図の読み込み前に詳細を開いていた場合
 }
 function refreshMarkers(){
   if(!map) return;
@@ -818,6 +848,106 @@ $("#btnSyncNow").addEventListener("click", ()=>{ if(!syncUrl()){ toast("先に�
   }catch(e){}
 })();
 document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) pullSync(); });
+
+/* ================= 詳細の中の地図（現在地→神社を点線で結ぶ） ================= */
+let sMap=null, sShrine=null, sMe=null, sLine=null, watchId=null, approachMax=0;
+function meIconObj(){
+  return { url:'data:image/svg+xml;charset=UTF-8,<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22"><circle cx="11" cy="11" r="7" fill="%234285F4" stroke="white" stroke-width="3"/></svg>',
+    scaledSize:new google.maps.Size(22,22) };
+}
+/* 神社ごとに「いちばん遠かった距離」を覚えて、そこからの進み具合をバーにする */
+const APPROACH_KEY = "omiya_approach";
+function approachBase(no, d){
+  let m = {};
+  try{ m = JSON.parse(sessionStorage.getItem(APPROACH_KEY) || "{}"); }catch(e){}
+  const cur = Number(m[no]) || 0;
+  const base = Math.max(cur, d, 120);
+  if(base !== cur){ try{ m[no] = base; sessionStorage.setItem(APPROACH_KEY, JSON.stringify(m)); }catch(e){} }
+  return base;
+}
+function setupSheetMap(no){
+  const sec = $("#sheetMapSec");
+  if(typeof google === "undefined" || !google.maps){ sec.style.display = "none"; return; }
+  sec.style.display = "block";
+  const s = SHRINES.find(x=>x.no===no);
+  const pos = {lat:s.lat, lng:s.lng};
+  if(!sMap){
+    sMap = new google.maps.Map($("#sheetMap"), {center:pos, zoom:16, maxZoom:17, disableDefaultUI:true,
+      zoomControl:true, clickableIcons:false, gestureHandling:"cooperative"});
+    sShrine = new google.maps.Marker({map:sMap});
+    sMe = new google.maps.Marker({map:sMap, zIndex:99, icon:meIconObj()});
+    sLine = new google.maps.Polyline({map:sMap, strokeOpacity:0, icons:[{
+      icon:{path:"M 0,-1 0,1", strokeColor:"#b8371f", strokeOpacity:.95, scale:3.2},
+      offset:"0", repeat:"11px"}]});
+  }
+  sShrine.setPosition(pos);
+  sShrine.setIcon(markerIcon(!!rec(no)?.stamp));
+  sShrine.setLabel({text:String(no), color:"#fff", fontSize:"12px", fontWeight:"700"});
+  sMap.setCenter(pos); sMap.setZoom(16);
+  approachMax = 0;
+  updateSheetMap(no, true);
+  setTimeout(()=>{ if(sheetNo===no){ google.maps.event.trigger(sMap, "resize"); updateSheetMap(no, true); } }, 340);
+  if(navigator.permissions){
+    navigator.permissions.query({name:"geolocation"})
+      .then(st=>{ if(st.state === "granted" && sheetNo===no) startWatch(no); }).catch(()=>{});
+  }
+}
+/* 2点の中点を中心に、両方が収まるズームを距離から直に決める（fitBoundsは生成直後に効かないことがある） */
+function framePair(a, b){
+  const d = Math.max(60, distM(a, b));
+  const z = Math.max(10, Math.min(17, Math.floor(Math.log2(18855000 / d))));
+  sMap.setCenter({lat:(a.lat + b.lat)/2, lng:(a.lng + b.lng)/2});
+  sMap.setZoom(z);
+}
+function updateSheetMap(no, fit){
+  if(!sMap) return;
+  const s = SHRINES.find(x=>x.no===no);
+  const pos = {lat:s.lat, lng:s.lng};
+  const box = $("#sheetMapSec"), fill = $("#approachFill");
+  if(!lastPos){
+    sMe.setMap(null); sLine.setPath([]);
+    $("#mapDist").textContent = "—";
+    $("#mapNote").textContent = "現在地からの道のりを出せます";
+    $("#btnSheetLocate").style.display = "";
+    fill.style.width = "0"; box.classList.remove("arrived");
+    return;
+  }
+  $("#btnSheetLocate").style.display = "none";
+  sMe.setMap(sMap); sMe.setPosition(lastPos);
+  sLine.setPath([lastPos, pos]);
+  const d = distM(lastPos, s);
+  approachMax = approachBase(no, d);
+  const arrived = d <= CHECKIN_RADIUS_M;
+  $("#mapDist").textContent = fmtDist(d);
+  $("#mapNote").textContent = arrived
+    ? (rec(no)?.stamp ? "境内の近くです" : "境内の近くです。押印できます ㊞")
+    : goTime(d) + "・近づくと縮みます";
+  box.classList.toggle("arrived", arrived);
+  $("#btnCheckin")?.classList.toggle("ready", arrived);
+  fill.style.width = Math.round(Math.min(100, Math.max(0, (1 - d/approachMax) * 100))) + "%";
+  if(fit) framePair(lastPos, pos);
+}
+function startWatch(no){
+  stopWatch();
+  if(!navigator.geolocation) return;
+  watchId = navigator.geolocation.watchPosition(p=>{
+    lastPos = {lat:p.coords.latitude, lng:p.coords.longitude};
+    if(sheetNo === no) updateSheetMap(no, false);
+    renderNear();
+    if(map) showMe(lastPos);
+  }, ()=>{}, {enableHighAccuracy:true, maximumAge:4000, timeout:20000});
+}
+function stopWatch(){ if(watchId != null){ navigator.geolocation.clearWatch(watchId); watchId = null; } }
+$("#btnSheetLocate").addEventListener("click", ()=>{
+  if(!navigator.geolocation){ toast("この環境では位置情報が使えません"); return; }
+  $("#mapNote").textContent = "現在地を確認しています…";
+  navigator.geolocation.getCurrentPosition(p=>{
+    lastPos = {lat:p.coords.latitude, lng:p.coords.longitude};
+    if(sheetNo){ updateSheetMap(sheetNo, true); startWatch(sheetNo); }
+    renderNear(); renderList();
+  }, ()=>{ $("#mapNote").textContent = "現在地が取れませんでした（位置情報の許可をご確認ください）"; },
+  {enableHighAccuracy:true, timeout:12000});
+});
 
 /* ================= 写真（ドライブ保存） ================= */
 function thumbUrl(id, w){ return `https://drive.google.com/thumbnail?id=${id}&sz=w${w}`; }
